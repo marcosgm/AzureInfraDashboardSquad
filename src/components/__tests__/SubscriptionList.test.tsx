@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import SubscriptionList from "@/components/SubscriptionList";
 import type { AzureSubscription } from "@/types/azure";
@@ -23,31 +23,10 @@ const fakeSubscriptions: AzureSubscription[] = [
 
 // ── Tests ────────────────────────────────────────────────
 describe("SubscriptionList", () => {
-  beforeEach(() => {
-    jest.restoreAllMocks();
-  });
+  it("renders subscription data in a table", () => {
+    render(<SubscriptionList subscriptions={fakeSubscriptions} />);
 
-  it("renders loading state initially", () => {
-    // fetch that never resolves → component stays in loading
-    global.fetch = jest.fn().mockReturnValue(new Promise(() => {}));
-
-    render(<SubscriptionList />);
-
-    expect(screen.getByText("Loading subscriptions…")).toBeInTheDocument();
-  });
-
-  it("renders subscription data in a table", async () => {
-    global.fetch = jest.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ subscriptions: fakeSubscriptions }),
-    });
-
-    render(<SubscriptionList />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Dev Subscription")).toBeInTheDocument();
-    });
-
+    expect(screen.getByText("Dev Subscription")).toBeInTheDocument();
     expect(screen.getByText("Prod Subscription")).toBeInTheDocument();
     expect(screen.getByText("aaa-111")).toBeInTheDocument();
     expect(screen.getByText("bbb-222")).toBeInTheDocument();
@@ -55,31 +34,31 @@ describe("SubscriptionList", () => {
     expect(screen.getByText("Disabled")).toBeInTheDocument();
   });
 
-  it("renders error state with error message", async () => {
-    global.fetch = jest.fn().mockResolvedValue({
-      ok: false,
-      json: async () => ({ error: "Failed to fetch subscriptions" }),
-    });
+  it("renders table headers", () => {
+    render(<SubscriptionList subscriptions={fakeSubscriptions} />);
 
-    render(<SubscriptionList />);
-
-    await waitFor(() => {
-      expect(
-        screen.getByText("Error: Failed to fetch subscriptions")
-      ).toBeInTheDocument();
-    });
+    expect(screen.getByText("Name")).toBeInTheDocument();
+    expect(screen.getByText("Subscription ID")).toBeInTheDocument();
+    expect(screen.getByText("State")).toBeInTheDocument();
   });
 
-  it("renders empty state when no subscriptions", async () => {
-    global.fetch = jest.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ subscriptions: [] }),
-    });
+  it("renders empty state when no subscriptions", () => {
+    render(<SubscriptionList subscriptions={[]} />);
 
-    render(<SubscriptionList />);
+    expect(screen.getByText("No subscriptions found")).toBeInTheDocument();
+  });
 
-    await waitFor(() => {
-      expect(screen.getByText("No subscriptions found.")).toBeInTheDocument();
-    });
+  it("applies correct badge style for Enabled state", () => {
+    render(<SubscriptionList subscriptions={[fakeSubscriptions[0]]} />);
+
+    const badge = screen.getByText("Enabled");
+    expect(badge.className).toContain("bg-emerald-100");
+  });
+
+  it("applies correct badge style for Disabled state", () => {
+    render(<SubscriptionList subscriptions={[fakeSubscriptions[1]]} />);
+
+    const badge = screen.getByText("Disabled");
+    expect(badge.className).toContain("bg-red-100");
   });
 });

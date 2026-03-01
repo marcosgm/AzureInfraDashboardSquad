@@ -1,13 +1,39 @@
 import type { AzureSubscription } from "@/types/azure";
 
+// ── Error classes (must be real classes for instanceof checks) ────
+class AzureEnvError extends Error {
+  constructor(msg: string) {
+    super(msg);
+    this.name = "AzureEnvError";
+  }
+}
+
+class AzureAuthError extends Error {
+  constructor(msg: string) {
+    super(msg);
+    this.name = "AzureAuthError";
+  }
+}
+
+class AzureServiceError extends Error {
+  public statusCode?: number;
+  constructor(msg: string, statusCode?: number) {
+    super(msg);
+    this.name = "AzureServiceError";
+    this.statusCode = statusCode;
+  }
+}
+
 // ── Mocks ────────────────────────────────────────────────
 const mockListSubscriptions = jest.fn();
 
 jest.mock("@/services/azure/subscriptions", () => ({
   listSubscriptions: (...args: unknown[]) => mockListSubscriptions(...args),
+  AzureEnvError,
+  AzureAuthError,
+  AzureServiceError,
 }));
 
-// Minimal NextResponse mock for the node test environment
 jest.mock("next/server", () => ({
   NextResponse: {
     json: (body: unknown, init?: { status?: number }) => ({
@@ -44,14 +70,26 @@ describe("GET /api/subscriptions", () => {
     expect(body).toEqual({ subscriptions: fakeSubscriptions });
   });
 
-  it("returns 500 when the service throws", async () => {
-    mockListSubscriptions.mockRejectedValue(new Error("Azure down"));
+  it("returns 500 when the service throws a generic error", async () => {
+    mockListSubscriptions.mockRejectedValue(new Error("Something broke"));
 
     const res = await GET();
     const body = await res.json();
 
     expect(res.status).toBe(500);
     expect(body.error).toBe("Failed to fetch subscriptions");
+  });
+
+  it("returns 500 when Azure env vars are missing", async () => {
+    mockListSubscriptions.mockRejectedValue(
+      new AzureEnvError("Missing AZURE_TENANT_ID")
+    );
+
+    const res = await GET();
+    const body = await res.json();
+
+    expect(res.status).toBe(500);
+    expect(body.error).toBe("Azure credentials not configured");
   });
 
   it("response matches the SubscriptionsResponse contract", async () => {
