@@ -2,7 +2,7 @@
 
 ## Project Context
 - **Project:** Azure Infrastructure Visualizer
-- **Stack:** Next.js 14 (App Router) + TypeScript + Tailwind + node-cache
+- **Stack:** Next.js 14 (App Router) + TypeScript + Tailwind + node-cache + React Flow (Phase 2)
 - **User:** Marcos
 - **Description:** Real-time Azure infrastructure visualization with interactive diagrams, dashboard charts (uptime, latency, usage), Azure MCP for discovery, telemetry APIs, 5-minute cache refresh.
 
@@ -13,12 +13,13 @@
 - Language: TypeScript
 - Cache: node-cache (in-memory, 5-min TTL)
 - Styling: Tailwind CSS
-- Frontend Component: `src/components/SubscriptionList.tsx` (Swigert's focus)
+- Frontend Component: `src/components/SubscriptionList.tsx` (Swigert's Phase 1 focus)
+- Diagram Library: React Flow v12 + Dagre (Phase 2)
 
 **Key Rules:**
 1. No credential files — all auth via environment variables
 2. Single API route: `GET /api/subscriptions` returns list of subscriptions
-3. Minimal scope: subscription list only (charts/diagrams deferred)
+3. Minimal scope: subscription list only (charts/diagrams deferred in Phase 1; diagrams in Phase 2)
 
 **Project Structure:**
 - `ARCHITECTURE.md` — system design and interface contracts
@@ -43,7 +44,7 @@
 
 ## Learnings
 
-### MVP Dashboard Polish (frontend-mvp)
+### MVP Dashboard Polish (frontend-mvp, 2026-03-01)
 - **Architecture pattern:** Extracted data fetching into `src/hooks/useSubscriptions.ts` custom hook. The `Dashboard` component orchestrates state; `SubscriptionList` is now a pure presentational component receiving props.
 - **Component structure:** `DashboardHeader` (server component in layout), `Dashboard` (client, owns data), `SummaryBar` (stats + refresh controls), `SubscriptionList` (table), `SkeletonTable` (loading state).
 - **Key files:**
@@ -62,4 +63,16 @@
 ### Cross-Agent Context (2026-03-01)
 - **Lovell's Backend:** API now returns differentiated HTTP status codes (401, 429, 503) instead of blanket 500. Dashboard's error state card now displays targeted messages based on status code.
 - **Haise's Tests:** Dashboard component tests mock `useSubscriptions` hook and pass subscriptions as props. SubscriptionList is tested as a presentational component. Component test coverage includes loading, error, and success states.
+
+### Phase 2 — Resource Discovery Diagram (IN_PROGRESS, 2026-03-01T17:20:26Z)
+- **Diagram library:** `@xyflow/react` (React Flow v12, MIT) + `@dagrejs/dagre` (MIT). No Pro subscription needed.
+- **Frontend route:** `src/app/subscriptions/[subscriptionId]/page.tsx` — dynamic route for resource diagram
+- **Data hook:** `src/hooks/useResourceGraph.ts` — fetches `GET /api/subscriptions/{id}/resources`, auto-poll every 5 min (aligns with backend cache)
+- **Components to create:**
+  - `src/components/ResourceDiagram.tsx` — React Flow canvas with Dagre hierarchical layout
+  - `src/components/ResourceNode.tsx` — custom node: icon + resource name + type label; hover tooltip shows resource group
+- **Navigation:** Update `SubscriptionList` rows to become `<Link href={`/subscriptions/${subId}`}>` elements pointing to diagram page
+- **Data model:** Consumes `ResourceGraphResponse` from backend: `{ subscriptionId, resourceGraph: { nodes, edges }, cachedAt }`
+- **Node rendering:** Show resource name + abbreviated type label (e.g., "WebApp", "Subnet"). Full resource group name appears in hover tooltip.
+- **Edge rendering:** Simple arrows between nodes; edge type (contains, links, depends-on) drives styling/color
 

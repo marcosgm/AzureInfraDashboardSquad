@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import type { AzureSubscription } from "@/types/azure";
 
 interface SubscriptionListProps {
@@ -63,13 +64,23 @@ export default function SubscriptionList({ subscriptions }: SubscriptionListProp
               return (
                 <tr
                   key={sub.subscriptionId}
-                  className={`${style.row} transition-colors hover:bg-slate-50`}
+                  className={`${style.row} cursor-pointer transition-colors hover:bg-slate-50`}
                 >
                   <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-slate-900">
-                    {sub.displayName}
+                    <Link
+                      href={`/subscriptions/${sub.subscriptionId}`}
+                      className="text-blue-600 hover:text-blue-800 hover:underline"
+                    >
+                      {sub.displayName}
+                    </Link>
                   </td>
                   <td className="whitespace-nowrap px-6 py-4 font-mono text-sm text-slate-500">
-                    {sub.subscriptionId}
+                    <Link
+                      href={`/subscriptions/${sub.subscriptionId}`}
+                      className="hover:text-slate-700"
+                    >
+                      {sub.subscriptionId}
+                    </Link>
                   </td>
                   <td className="whitespace-nowrap px-6 py-4 text-sm">
                     <span
@@ -84,9 +95,10 @@ export default function SubscriptionList({ subscriptions }: SubscriptionListProp
                   {/* Mobile expand button */}
                   <td className="px-3 py-4 lg:hidden">
                     <button
-                      onClick={() =>
-                        setExpandedId(isExpanded ? null : sub.subscriptionId)
-                      }
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setExpandedId(isExpanded ? null : sub.subscriptionId);
+                      }}
                       className="text-slate-400 hover:text-slate-600"
                       aria-label="Toggle details"
                     >
@@ -101,8 +113,6 @@ export default function SubscriptionList({ subscriptions }: SubscriptionListProp
                       </svg>
                     </button>
                   </td>
-                  {/* Expanded detail row on mobile — rendered via CSS trick in same <tr> using a colspan trick isn't valid, 
-                       so we use a separate mechanism below */}
                 </tr>
               );
             })}

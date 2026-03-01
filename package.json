@@ -10,8 +10,11 @@
     "test": "jest"
   },
   "dependencies": {
+    "@azure/arm-resources": "^7.0.0",
     "@azure/arm-resources-subscriptions": "^2.1.0",
     "@azure/identity": "^4.6.0",
+    "@dagrejs/dagre": "^2.0.4",
+    "@xyflow/react": "^12.10.1",
     "next": "^14.2.0",
     "node-cache": "^5.1.2",
     "react": "^18.3.0",
@@ -21,6 +24,7 @@
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
+    "@types/d3-hierarchy": "^3.1.7",
     "@types/jest": "^30.0.0",
     "@types/node": "^20.14.0",
     "@types/react": "^18.3.0",

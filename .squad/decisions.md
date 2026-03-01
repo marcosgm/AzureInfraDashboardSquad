@@ -134,3 +134,90 @@ Total: 20 tests, all passing.
 - Swigert (frontend) and Lovell (backend) can start immediately; project builds clean.
 - The in-memory cache resets on server restart — acceptable for MVP.
 - When we add resource discovery, we may need a background refresh worker.
+
+---
+
+## 2026-03-01T17:20:26Z: Phase 2 — Resource Discovery & Diagram Architecture
+
+**Author:** Kranz (Lead)  
+**Date:** 2026-03-01  
+**Status:** Approved
+
+### Context
+
+Marcos requested clicking a subscription to show an interactive architecture diagram of Azure resources with their relationships. Resource names are displayed as node labels; resource group revealed on hover.
+
+### Decisions
+
+#### 1. Azure SDK — `@azure/arm-resources`
+
+Use `ResourceManagementClient(credential, subscriptionId).resources.list()` to enumerate all resources in a subscription.
+
+**Important:** This is different from `@azure/arm-resources-subscriptions` (subscription listing) and `@azure/arm-subscriptions` v6 (lifecycle).
+
+#### 2. Data Model (New Types in `src/types/azure.ts`)
+
+```typescript
+interface AzureResource {
+  id: string;
+  name: string;
+  type: string;
+  resourceGroup: string;    // Parsed from ID
+  location: string;
+}
+
+interface ResourceRelationship {
+  sourceId: string;
+  targetId: string;
+  type: string;  // "contains", "links", "depends-on"
+}
+
+interface ResourceGraph {
+  nodes: AzureResource[];
+  edges: ResourceRelationship[];
+}
+
+interface ResourceGraphResponse {
+  subscriptionId: string;
+  resourceGraph: ResourceGraph;
+  cachedAt: string;
+}
+```
+
+#### 3. API Endpoint
+
+`GET /api/subscriptions/[subscriptionId]/resources` — returns `ResourceGraphResponse` with 5-minute cache keyed by `azure:resources:{subscriptionId}`.
+
+#### 4. Relationship Discovery — Static Mapping + ID Parsing (MVP)
+
+No Azure Resource Graph queries. Instead:
+- Parent/child from resource ID containment (VNet → Subnet)
+- Hardcoded known-type map (VM → NIC, NIC → Subnet, WebApp → AppServicePlan)
+- Pure function in `src/services/azure/relationships.ts`
+
+#### 5. Diagram Library — React Flow + Dagre
+
+- `@xyflow/react` (v12, MIT) for interactive canvas
+- `@dagrejs/dagre` (MIT) for free hierarchical auto-layout
+- No Pro subscription required
+
+#### 6. Frontend Routing
+
+Next.js App Router: `src/app/subscriptions/[subscriptionId]/page.tsx`  
+SubscriptionList rows become `<Link>` elements navigating to the diagram.
+
+### Impact
+
+- **Lovell:** Create `resources.ts` service, `relationships.ts`, API route
+- **Swigert:** Install React Flow + Dagre, create `ResourceDiagram`, `ResourceNode`, `useResourceGraph`, update `SubscriptionList` with links
+- **Haise:** New test suites for resource service, relationships, API route, diagram component
+
+### Dependencies to Install
+
+```json
+{
+  "@azure/arm-resources": "latest",
+  "@xyflow/react": "latest",
+  "@dagrejs/dagre": "latest"
+}
+```
