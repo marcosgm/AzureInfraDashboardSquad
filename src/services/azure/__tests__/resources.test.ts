@@ -162,6 +162,10 @@ describe("listResources", () => {
   });
 
   it("throws AzureServiceError with 429 on rate limit", async () => {
+    // Ensure credential mock is reset (previous test may have overridden it)
+    const { DefaultAzureCredential } = require("@azure/identity");
+    DefaultAzureCredential.mockImplementation(() => ({}));
+
     const { RestError } = require("@azure/core-rest-pipeline");
     mockList.mockReturnValue(
       (async function* () {
@@ -169,7 +173,8 @@ describe("listResources", () => {
       })()
     );
 
-    await expect(listResources(SUB_ID)).rejects.toThrow(AzureServiceError);
-    await expect(listResources(SUB_ID)).rejects.toThrow(/rate limit/i);
+    const promise = listResources(SUB_ID);
+    await expect(promise).rejects.toThrow(AzureServiceError);
+    await expect(promise).rejects.toThrow(/rate limit/i);
   });
 });

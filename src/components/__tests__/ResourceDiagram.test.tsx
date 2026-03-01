@@ -1,23 +1,21 @@
 /**
- * ResourceDiagram component tests — written against the Phase 2 design spec.
+ * ResourceDiagram component tests — Phase 2.
  *
- * These tests are SKIPPED until the component and its hook are implemented
- * by Swigert. They define the expected contract:
- *   - Loading state renders a skeleton/spinner
- *   - Error state renders an error message
- *   - Success state renders React Flow nodes for each resource
- *   - Empty graph renders an empty-state message
- *
- * Once ResourceDiagram.tsx and useResourceGraph.ts exist, remove .skip
- * and adjust selectors/text as needed.
+ * Mocks React Flow, dagre, CSS imports, and the data-fetching hook
+ * to test loading, error, success, and empty states in jsdom.
  */
 import "@testing-library/jest-dom";
+import React from "react";
+import { render, screen } from "@testing-library/react";
 
-// ── Mock React Flow before any component import ──────────
+// ── Mock CSS import ──────────────────────────────────────
+jest.mock("@xyflow/react/dist/style.css", () => ({}));
+
+// ── Mock React Flow ──────────────────────────────────────
 jest.mock("@xyflow/react", () => ({
-  ReactFlow: ({ nodes, edges }: { nodes: unknown[]; edges: unknown[] }) => (
+  ReactFlow: ({ nodes }: { nodes: { id: string; data: { label: string } }[] }) => (
     <div data-testid="react-flow">
-      {(nodes as { id: string; data: { label: string } }[]).map((n) => (
+      {(nodes ?? []).map((n) => (
         <div key={n.id} data-testid={`node-${n.id}`}>
           {n.data.label}
         </div>
@@ -26,37 +24,45 @@ jest.mock("@xyflow/react", () => ({
   ),
   Background: () => null,
   Controls: () => null,
-  MiniMap: () => null,
-  useNodesState: (initial: unknown[]) => [initial, jest.fn()],
-  useEdgesState: (initial: unknown[]) => [initial, jest.fn()],
+  Handle: () => null,
   Position: { Top: "top", Bottom: "bottom", Left: "left", Right: "right" },
+  useNodesState: (initial: unknown[]) => [initial, jest.fn(), jest.fn()],
+  useEdgesState: (initial: unknown[]) => [initial, jest.fn(), jest.fn()],
+}));
+
+// ── Mock dagre ───────────────────────────────────────────
+jest.mock("@dagrejs/dagre", () => ({
+  __esModule: true,
+  default: {
+    graphlib: {
+      Graph: jest.fn().mockImplementation(() => ({
+        setDefaultEdgeLabel: jest.fn(),
+        setGraph: jest.fn(),
+        setNode: jest.fn(),
+        setEdge: jest.fn(),
+        node: () => ({ x: 0, y: 0 }),
+      })),
+    },
+    layout: jest.fn(),
+  },
+}));
+
+// ── Mock ResourceNode ────────────────────────────────────
+jest.mock("@/components/ResourceNode", () => ({
+  __esModule: true,
+  default: () => <div data-testid="resource-node" />,
 }));
 
 // ── Mock the data-fetching hook ──────────────────────────
 const mockUseResourceGraph = jest.fn();
 jest.mock("@/hooks/useResourceGraph", () => ({
-  __esModule: true,
-  default: (...args: unknown[]) => mockUseResourceGraph(...args),
+  useResourceGraph: (...args: unknown[]) => mockUseResourceGraph(...args),
 }));
 
-// Conditional skip: only run these tests when the component exists
-let ResourceDiagram: React.ComponentType<{ subscriptionId: string }> | null = null;
-let componentExists = false;
-
-try {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  ResourceDiagram = require("@/components/ResourceDiagram").default;
-  componentExists = true;
-} catch {
-  componentExists = false;
-}
-
-import { render, screen } from "@testing-library/react";
+import ResourceDiagram from "@/components/ResourceDiagram";
 
 // ── Tests ────────────────────────────────────────────────
-const describeIf = componentExists ? describe : describe.skip;
-
-describeIf("ResourceDiagram", () => {
+describe("ResourceDiagram", () => {
   beforeEach(() => jest.clearAllMocks());
 
   it("renders loading state", () => {
@@ -64,46 +70,26 @@ describeIf("ResourceDiagram", () => {
       graph: null,
       loading: true,
       error: null,
+      refresh: jest.fn(),
     });
 
-    render(<ResourceDiagram! subscriptionId="sub-1" />);
+    render(<ResourceDiagram subscriptionId="sub-1" />);
 
-    // Expect some loading indicator (skeleton, spinner, or text)
-    expect(screen.getByText(/loading/i)).toBeInTheDocument();
+    expect(screen.getByText(/loading resource diagram/i)).toBeInTheDocument();
   });
 
-  it("renders error state", () => {
+  it("renders error state with retry button", () => {
     mockUseResourceGraph.mockReturnValue({
       graph: null,
       loading: false,
-      error: "Failed to load resources",
+      error: "Azure service unavailable",
+      refresh: jest.fn(),
     });
 
-    render(<ResourceDiagram! subscriptionId="sub-1" />);
+    render(<ResourceDiagram subscriptionId="sub-1" />);
 
-    expect(screen.getByText(/failed/i)).toBeInTheDocument();
-  });
-
-  it("renders React Flow canvas with resource nodes", () => {
-    mockUseResourceGraph.mockReturnValue({
-      graph: {
-        nodes: [
-          {
-            id: "vm-1",
-            data: { label: "myVM" },
-            position: { x: 0, y: 0 },
-          },
-        ],
-        edges: [],
-      },
-      loading: false,
-      error: null,
-    });
-
-    render(<ResourceDiagram! subscriptionId="sub-1" />);
-
-    expect(screen.getByTestId("react-flow")).toBeInTheDocument();
-    expect(screen.getByText("myVM")).toBeInTheDocument();
+    expect(screen.getByText(/failed to load resources/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /retry/i })).toBeInTheDocument();
   });
 
   it("renders empty state when graph has no nodes", () => {
@@ -111,10 +97,35 @@ describeIf("ResourceDiagram", () => {
       graph: { nodes: [], edges: [] },
       loading: false,
       error: null,
+      refresh: jest.fn(),
     });
 
-    render(<ResourceDiagram! subscriptionId="sub-1" />);
+    render(<ResourceDiagram subscriptionId="sub-1" />);
 
-    expect(screen.getByText(/no resources/i)).toBeInTheDocument();
+    expect(screen.getByText(/no resources found/i)).toBeInTheDocument();
+  });
+
+  it("renders React Flow canvas for non-empty graph", () => {
+    mockUseResourceGraph.mockReturnValue({
+      graph: {
+        nodes: [
+          {
+            id: "/sub/rg/vm1",
+            name: "myVM",
+            type: "Microsoft.Compute/virtualMachines",
+            resourceGroup: "my-rg",
+            location: "eastus",
+          },
+        ],
+        edges: [],
+      },
+      loading: false,
+      error: null,
+      refresh: jest.fn(),
+    });
+
+    render(<ResourceDiagram subscriptionId="sub-1" />);
+
+    expect(screen.getByTestId("react-flow")).toBeInTheDocument();
   });
 });
