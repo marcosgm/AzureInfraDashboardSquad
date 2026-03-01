@@ -59,3 +59,7 @@
 - **Error state:** Centered error card with retry button, icon, and error message text.
 - **Build:** Compiles cleanly with `next build`, First Load JS ~90KB.
 
+### Cross-Agent Context (2026-03-01)
+- **Lovell's Backend:** API now returns differentiated HTTP status codes (401, 429, 503) instead of blanket 500. Dashboard's error state card now displays targeted messages based on status code.
+- **Haise's Tests:** Dashboard component tests mock `useSubscriptions` hook and pass subscriptions as props. SubscriptionList is tested as a presentational component. Component test coverage includes loading, error, and success states.
+

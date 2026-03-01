@@ -44,3 +44,7 @@ Never store Azure credentials in the filesystem — use environment variables on
 - `.env.example` was already scaffolded by Kranz with the three required vars.
 - Build passes clean with `npm run build`.
 
+### Cross-Agent Context (2026-03-01)
+- **Swigert's Dashboard:** Now consuming differentiated HTTP error codes to show targeted error UI (401 → "Unauthorized", 429 → "Rate Limited", 503 → "Service Unavailable", etc.)
+- **Haise's Tests:** Typed error classes (`AzureEnvError`, `AzureAuthError`, `AzureServiceError`) are exported and mocked in the API route test suite. Route test coverage includes all four error code paths (401, 429, 503, 500).
+

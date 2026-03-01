@@ -9,6 +9,102 @@ Never store Azure credentials in the filesystem. Use environment variables from 
 
 ---
 
+## 2026-03-01T16:23:00Z: Backend Error Handling Strategy
+
+**Author:** Lovell (Backend Dev)  
+**Date:** 2026-03-01  
+**Status:** Implemented
+
+### Context
+The scaffolded backend returned HTTP 500 for all error types. The API route needed differentiated error responses so the frontend can show appropriate messages.
+
+### Decision
+Introduced typed error classes in the Azure service layer:
+- `AzureEnvError` — missing credentials configuration
+- `AzureAuthError` — Azure rejected credentials (401/403)
+- `AzureServiceError` — Azure API failures, rate limits, network errors
+
+The API route maps these to distinct HTTP status codes:
+| Error Type | HTTP Status |
+|---|---|
+| `AzureEnvError` | 500 (server misconfiguration) |
+| `AzureAuthError` | 401 (unauthorized) |
+| `AzureServiceError` (rate limit) | 429 |
+| `AzureServiceError` (other) | 503 (service unavailable) |
+| Unknown | 500 |
+
+Error details are only exposed in development mode (`NODE_ENV=development`).
+
+### Impact
+- **Frontend (Swigert):** Can now distinguish error types by HTTP status code to show targeted UI messages.
+- **Testing (Haise):** Error classes are exported and can be mocked/asserted in tests.
+
+---
+
+## 2026-03-01T16:23:00Z: Frontend MVP Dashboard Architecture
+
+**Author:** Swigert (Frontend Dev)  
+**Date:** 2026-03-01  
+**Status:** Implemented
+
+### Context
+The initial scaffolding had `SubscriptionList` handling its own data fetching, loading, and error states inline. As the dashboard grew to need a summary bar, refresh controls, and a header, this monolithic approach didn't scale.
+
+### Decision
+1. **Custom hook for data fetching (`useSubscriptions`)**: All fetch logic, auto-refresh (5 min), countdown timer, and refresh state live in a single hook. This keeps data logic reusable and out of components.
+
+2. **Presentational SubscriptionList**: The component now receives `subscriptions` as props and focuses purely on rendering the table. No `useEffect`, no fetch calls.
+
+3. **Dashboard orchestrator component**: A `Dashboard` client component owns the hook and renders the summary bar, skeleton loaders, error states, and subscription list.
+
+4. **DashboardHeader in layout.tsx**: The navbar is a server component rendered in the root layout, so it appears on every page without re-rendering.
+
+5. **Slate color palette**: Switched from `gray-*` to `slate-*` for a cooler, more professional tone aligned with Azure Portal aesthetics.
+
+### Impact
+- All team members should import from `@/hooks/useSubscriptions` if they need subscription data on the client.
+- `SubscriptionList` now requires a `subscriptions` prop — it no longer fetches its own data.
+- New components are in `src/components/`: `Dashboard.tsx`, `DashboardHeader.tsx`, `SummaryBar.tsx`, `SkeletonTable.tsx`.
+
+---
+
+## 2026-03-01T16:23:00Z: Test Infrastructure Setup
+
+**Author:** Haise (Tester)  
+**Date:** 2026-03-01  
+**Status:** Implemented
+
+### Decision
+Chose **Jest + ts-jest** over Vitest for the test framework.
+
+### Rationale
+- Jest is the most mature test runner for Next.js projects with the widest ecosystem support.
+- ts-jest provides reliable TypeScript transpilation without needing Babel.
+- React Testing Library + jest-environment-jsdom for component tests.
+- `projects` config separates server tests (node env) from client tests (jsdom env), avoiding environment mismatch issues.
+
+### Test Structure
+```
+src/
+  services/__tests__/cache.test.ts          — 6 tests
+  services/azure/__tests__/subscriptions.test.ts — 5 tests
+  app/api/subscriptions/__tests__/route.test.ts  — 4 tests
+  components/__tests__/SubscriptionList.test.tsx  — 5 tests
+```
+
+Total: 20 tests, all passing.
+
+### Dependencies Added (devDependencies)
+- jest, ts-jest, @types/jest, ts-node
+- @testing-library/react, @testing-library/jest-dom, @testing-library/user-event
+- jest-environment-jsdom
+
+### Notes
+- ARCHITECTURE.md shows SubscriptionList as a self-contained component with fetch/loading/error states. The actual implementation is a presentational component receiving props — tests were written against the actual code.
+- `npm test` script added to package.json.
+
+---
+
 ## 2026-03-01: MVP Architecture — Azure Infrastructure Visualizer
 
 **Author:** Kranz (Lead)  
