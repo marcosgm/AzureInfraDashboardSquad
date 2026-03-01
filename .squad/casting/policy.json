@@ -1,0 +1,4 @@
+{
+  "universes": ["apollo-13"],
+  "max_per_universe": 10
+}
