@@ -35,14 +35,12 @@
 - **Lovell's Backend:** API route tests validate all error code paths (401 for auth, 429 for rate limit, 503 for service issues, 500 for config). Error classes are mocked in the route test suite.
 - **Swigert's Frontend:** Dashboard component receives `useSubscriptions` hook result. Tests mock the hook and pass subscriptions as props to the `SubscriptionList` component. Error state card displays HTTP status code to determine message.
 
-### Phase 2 — Resource Discovery Tests (IN_PROGRESS, 2026-03-01T17:20:26Z)
-- **New service to test:** `src/services/azure/resources.ts` — lists resources via `ResourceManagementClient`, handles errors
-- **New service to test:** `src/services/azure/relationships.ts` — pure function taking resource array, returning relationship edges. Test static mapping (VNet → Subnet, VM → NIC, etc.)
-- **New API route to test:** `src/app/api/subscriptions/[subscriptionId]/resources/route.ts` — success path, auth error (401), rate limit (429), service error (503), cache hit/miss
-- **New component to test:** `src/components/ResourceDiagram.tsx` — React Flow canvas renders nodes and edges; zoom/pan controls work
-- **New component to test:** `src/components/ResourceNode.tsx` — renders resource name, type label; hover shows tooltip with resource group
-- **New hook to test:** `src/hooks/useResourceGraph.ts` — fetches from API, auto-polls every 5 min, handles errors, refetch on demand
-- **Test structure will mirror Phase 1:**
-  - Service tests: mock Azure SDK, validate data transformation, error handling
-  - API route tests: mock service layer, validate HTTP status codes, cache behavior
-  - Component tests: mock hooks, validate rendering and interactions
+### Phase 2 — Resource Discovery Tests (DONE, 2026-03-01)
+- **Resource service tests (7):** `src/services/azure/__tests__/resources.test.ts` — fetch from Azure, resourceGroup parsing from ID, malformed ID fallback, cache keyed by subscriptionId, cache hit on second call, AzureAuthError on credential failure, AzureServiceError on 429 rate limit.
+- **Relationship service tests (8):** `src/services/azure/__tests__/relationships.test.ts` — empty input, VNet→Subnet parent/child containment, VM→NIC uses, NIC→Subnet attachedTo, WebApp→AppServicePlan hostedOn, no relationships for unrelated types, no cross-resource-group type matching, malformed IDs don't crash.
+- **Resources API route tests (8):** `src/app/api/subscriptions/[subscriptionId]/resources/__tests__/route.test.ts` — 200 with graph, passes subscriptionId, 401 on auth, 429 on rate limit, 503 on service error, 500 on env error, 500 on unknown error, response matches ResourceGraphResponse contract.
+- **ResourceDiagram component tests (4):** `src/components/__tests__/ResourceDiagram.test.tsx` — loading state, error state with retry button, empty state (no resources), React Flow canvas renders for non-empty graph. Mocks: @xyflow/react, @dagrejs/dagre, CSS import, ResourceNode, useResourceGraph hook.
+- **Total new tests:** 27. Suite total: 47 tests across 8 suites, all passing.
+- **Mocking pattern for React Flow:** Mock `@xyflow/react` with simple div components, mock `@xyflow/react/dist/style.css` as empty object, mock `@dagrejs/dagre` with stub Graph class. `useNodesState`/`useEdgesState` return 3-element arrays `[state, setter, onChange]`.
+- **DefaultAzureCredential mock leakage:** `jest.clearAllMocks()` does NOT reset `.mockImplementation()`. Tests that override DefaultAzureCredential to throw must be ordered carefully, or subsequent tests must explicitly reset the mock with `.mockImplementation(() => ({}))`.
+- **Error class instanceof in route tests:** Route tests need real class instances (not plain Error) for instanceof checks. Define error classes locally in the test file and use them in the mock module.
