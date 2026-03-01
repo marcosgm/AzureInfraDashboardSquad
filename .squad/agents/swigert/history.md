@@ -64,6 +64,19 @@
 - **Lovell's Backend:** API now returns differentiated HTTP status codes (401, 429, 503) instead of blanket 500. Dashboard's error state card now displays targeted messages based on status code.
 - **Haise's Tests:** Dashboard component tests mock `useSubscriptions` hook and pass subscriptions as props. SubscriptionList is tested as a presentational component. Component test coverage includes loading, error, and success states.
 
+### Phase 2 — Resource Diagram Frontend
+- **New dependencies:** `@xyflow/react` v12 (React Flow) for interactive diagrams, `@dagrejs/dagre` for hierarchical auto-layout. Both MIT.
+- **Component architecture:** Same pattern as Phase 1 — custom hook (`useResourceGraph`) owns fetch logic, `ResourceDiagram` orchestrates state (loading/error/empty/success), `ResourceNode` is a pure presentational node.
+- **Key files:**
+  - `src/hooks/useResourceGraph.ts` — fetches `GET /api/subscriptions/[id]/resources`, returns `{ graph, loading, error, refresh }`
+  - `src/components/ResourceDiagram.tsx` — client component, converts `ResourceGraph` to React Flow nodes/edges via dagre layout, renders canvas with zoom/pan/controls
+  - `src/components/ResourceNode.tsx` — custom React Flow node showing resource name, type icon, and hover tooltip with resource group name
+  - `src/app/subscriptions/[subscriptionId]/page.tsx` — dynamic route server component with back navigation link
+- **SubscriptionList changes:** Added `next/link` import; subscription name and ID columns are now clickable `<Link>` elements routing to `/subscriptions/[subscriptionId]`. Mobile expand button uses `e.stopPropagation()` to avoid conflicting interactions.
+- **Styling:** Dark slate canvas (`bg-slate-900`) with `slate-800` nodes, consistent with existing dashboard palette. React Flow Controls styled via arbitrary Tailwind selectors.
+- **Type generics fix:** `useNodesState<Node>([])` and `useEdgesState<Edge>([])` need explicit generic params with @xyflow/react v12 to avoid `never[]` inference.
+- **Build:** Compiles cleanly, First Load JS for diagram page ~166 kB (includes React Flow). All 20 existing tests pass.
+
 ### Phase 2 — Resource Discovery Diagram (IN_PROGRESS, 2026-03-01T17:20:26Z)
 - **Diagram library:** `@xyflow/react` (React Flow v12, MIT) + `@dagrejs/dagre` (MIT). No Pro subscription needed.
 - **Frontend route:** `src/app/subscriptions/[subscriptionId]/page.tsx` — dynamic route for resource diagram
