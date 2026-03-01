@@ -9,6 +9,15 @@ Never store Azure credentials in the filesystem. Use environment variables from 
 
 ---
 
+## 2026-03-01T17:26:12Z: User Directive — Azure Test Credentials
+
+**By:** Marcos (via Copilot)  
+**Status:** Active
+
+Azure credentials for testing are at `../setAzureEnv.sh` (relative to the project root). Source this file before running any live integration tests against Azure.
+
+---
+
 ## 2026-03-01T16:23:00Z: Backend Error Handling Strategy
 
 **Author:** Lovell (Backend Dev)  
@@ -221,3 +230,80 @@ SubscriptionList rows become `<Link>` elements navigating to the diagram.
   "@dagrejs/dagre": "latest"
 }
 ```
+
+---
+
+## 2026-03-01T16:23:00Z: React Flow Component Testing Strategy
+
+**Author:** Haise (Tester)  
+**Date:** 2026-03-01  
+**Status:** Implemented
+
+### Context
+Phase 2 introduced `@xyflow/react` (React Flow v12) and `@dagrejs/dagre` for the resource diagram. These libraries don't work in jsdom (no canvas, no layout engine). Needed a testing strategy for component tests.
+
+### Decision
+Mock React Flow and dagre at the module level in component tests:
+- `@xyflow/react` → simple div-based components that render node data
+- `@xyflow/react/dist/style.css` → empty object
+- `@dagrejs/dagre` → stub Graph class with no-op methods
+- `useNodesState`/`useEdgesState` → return `[initialState, setterFn, onChangeFn]` (3-element tuple)
+- `useResourceGraph` hook → fully mocked to control loading/error/graph states
+
+This lets us test the component's rendering logic (loading, error, empty, success states) without needing a real canvas or layout engine.
+
+### Impact
+- **Swigert:** If React Flow API changes (e.g., hook signatures), update mocks in `ResourceDiagram.test.tsx`
+- **Haise:** Pattern is reusable for any future React Flow components
+- **All:** Integration/E2E tests (Playwright/Cypress, future) should cover actual diagram rendering
+
+---
+
+## 2026-03-01T16:23:00Z: Resource Discovery Backend Patterns
+
+**Author:** Lovell (Backend Dev)  
+**Date:** 2026-03-01  
+**Status:** Implemented
+
+### Context
+Phase 2 required resource discovery — listing all Azure resources in a subscription and inferring relationships for diagram rendering.
+
+### Decisions
+
+#### 1. Error class reuse
+Reused `AzureAuthError` and `AzureServiceError` from `subscriptions.ts` rather than creating new error classes. The resources route imports them from the same module. This keeps error handling consistent across all Azure API routes.
+
+#### 2. Relationship inference is a pure function
+`discoverRelationships()` takes an `AzureResource[]` and returns `ResourceRelationship[]` with no side effects or Azure calls. This makes it trivially testable and keeps the Azure SDK call boundary in `resources.ts` only.
+
+#### 3. Resource group parsed from ID
+The Azure SDK's `GenericResource` does not include `resourceGroup` as a top-level field. We parse it from the resource ID using a regex (`/resourceGroups/([^/]+)/`). This is a well-known Azure pattern — all ARM resource IDs follow the same structure.
+
+#### 4. Type-based relationships scoped to resource group
+Known type mappings (VM→NIC, NIC→Subnet, etc.) only match resources within the same resource group. This avoids false positives in multi-RG subscriptions while keeping the heuristic simple.
+
+### Impact
+- **Swigert (Frontend):** New API endpoint `GET /api/subscriptions/[subscriptionId]/resources` returns `ResourceGraphResponse` with `nodes` and `edges` ready for React Flow rendering.
+- **Haise (Testing):** `listResources` follows same mock pattern as `listSubscriptions`. `discoverRelationships` is a pure function — easy to unit test with fixture data.
+
+---
+
+## 2026-03-01T16:23:00Z: Resource Diagram Component Architecture
+
+**Author:** Swigert (Frontend Dev)  
+**Date:** 2026-03-01  
+**Status:** Implemented
+
+### Context
+Phase 2 adds interactive resource diagrams. Needed to choose how to structure React Flow integration and data flow.
+
+### Decision
+1. **Dagre auto-layout via `applyDagreLayout` pure function**: Converts `ResourceGraph` (API types) to React Flow `Node[]`/`Edge[]` with computed positions. Runs once per graph fetch, not on every render.
+2. **Custom node component (`ResourceNode`)**: Uses React Flow's custom node API with `memo()`. Tooltip state is local to each node — no global tooltip store needed.
+3. **Type icon map**: Hardcoded `TYPE_ICONS` record maps lowercase Azure resource types to emoji. Falls back to ☁️ for unknown types. Easy to extend.
+4. **Subscription link via `<Link>` on name + ID columns**: Rather than making the entire table row a link (which conflicts with the mobile expand button), only the name and ID cells are wrapped in `<Link>`.
+
+### Impact
+- **Haise (Testing):** `ResourceDiagram` can be tested by mocking `useResourceGraph`. `ResourceNode` is a pure component testable with React Testing Library.
+- **Lovell (Backend):** Frontend expects `ResourceGraphResponse` shape from `GET /api/subscriptions/[id]/resources`.
+- **Future:** Adding new resource type icons is a one-line addition to `TYPE_ICONS` map in `ResourceNode.tsx`.
